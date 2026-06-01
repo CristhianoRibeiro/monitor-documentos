@@ -272,7 +272,11 @@ function limparHistoricoMonitor(){
 
 // ── UTILS ──
 function ext(n){ return (n.split('.').pop()||'').toLowerCase(); }
-function icone(n){
+function icone(n, tipo){
+  if(tipo === 'pasta'){
+    var cf='#b97a1a';
+    return '<div style="background:'+cf+'18;width:40px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="'+cf+'" stroke-width="1.7" width="23" height="23"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>';
+  }
   var e=ext(n);
   var map={pdf:'#E24B4A',xlsx:'#2d7a3a',xls:'#2d7a3a',docx:'#2455a0',doc:'#2455a0',csv:'#0F6E56',zip:'#b97a1a',pptx:'#993556'};
   var c=map[e]||'#888';
@@ -422,13 +426,15 @@ async function carregarUsuario(token){
 // ── BUSCA ──
 // Versão corrigida: não usa mais /search/query como fonte principal.
 // O Search do Graph pode retornar apenas parte dos arquivos recentes, por isso algumas empresas/pastas somem.
-// Agora o monitor percorre a biblioteca do SharePoint/Drive e traz todos os arquivos criados ou alterados no mês.
+// Agora o monitor percorre a biblioteca do SharePoint/Drive e traz todos os arquivos OU pastas criados/alterados no mês.
 var SHAREPOINT_HOST = 'sattvacontroladoria.sharepoint.com';
 var SITE_PATH = '/'; // site raiz. Se a biblioteca estiver em /sites/NOME, altere para '/sites/NOME'
 var MAX_DEPTH = 12;
 
 function dataDoDocumento(item){
-  return item.createdDateTime || item.lastModifiedDateTime || new Date().toISOString();
+  // Para monitoramento, a data principal deve ser a última modificação.
+  // Ex.: uma pasta criada em maio, mas alterada em junho, precisa aparecer em junho.
+  return item.lastModifiedDateTime || item.createdDateTime || new Date().toISOString();
 }
 
 function isMesDocumento(item){
@@ -514,25 +520,30 @@ async function percorrerDrive(token, drive, itemId, depth, acumulados){
   for(var i=0;i<filhos.length;i++){
     var item = filhos[i];
 
+    // Agora consideramos tanto ARQUIVOS quanto PASTAS.
+    // No SharePoint, muitas movimentações aparecem como alteração da pasta
+    // ex.: Documentos/R&G (teste)/2026/Maio, mesmo sem o arquivo aparecer na busca.
+    if(isMesDocumento(item)){
+      acumulados.push({
+        id: item.id || '',
+        driveId: drive.id || '',
+        nome: item.name || '',
+        url: item.webUrl || '',
+        data: dataDoDocumento(item),
+        criadoEm: item.createdDateTime || '',
+        modificadoEm: item.lastModifiedDateTime || '',
+        pasta: pastaDoDriveItem(item),
+        tipo: item.folder ? 'pasta' : 'arquivo',
+        downloadUrl: item['@microsoft.graph.downloadUrl'] || ''
+      });
+    }
+
     if(item.folder){
       await percorrerDrive(token, drive, item.id, depth+1, acumulados);
       continue;
     }
 
     if(!item.file) continue;
-    if(!isMesDocumento(item)) continue;
-
-    acumulados.push({
-      id: item.id || '',
-      driveId: drive.id || '',
-      nome: item.name || '',
-      url: item.webUrl || '',
-      data: dataDoDocumento(item),
-      criadoEm: item.createdDateTime || '',
-      modificadoEm: item.lastModifiedDateTime || '',
-      pasta: pastaDoDriveItem(item),
-      downloadUrl: item['@microsoft.graph.downloadUrl'] || ''
-    });
   }
 }
 
@@ -662,7 +673,7 @@ function atualizarUI(){
   sel.innerHTML='<option value="">Todas as pastas</option>'+pastas.sort().map(function(p){return '<option value="'+p+'"'+(p===cur?' selected':'')+'>'+p+'</option>';}).join('');
 
   document.getElementById('ft-upd').textContent='Atualizado às '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  document.getElementById('ft-tot').textContent=docs.length+' documento'+(docs.length!==1?'s':'')+' encontrado'+(docs.length!==1?'s':'');
+  document.getElementById('ft-tot').textContent=docs.length+' movimentaç'+(docs.length!==1?'ões':'ão')+' encontrada'+(docs.length!==1?'s':'');
   render();
 }
 
@@ -684,16 +695,16 @@ function render(){
     var hoje=isHoje(d.data);
     var key=encKey(d);
     var zipBotao='';
-    if(isZipNome(d.nome)){
+    if(d.tipo !== 'pasta' && isZipNome(d.nome)){
       zipBotao='<button class="zip-btn" onclick="event.preventDefault();event.stopPropagation();toggleZip(\''+key+'\')">'+(d.zipOpen?'Ocultar ZIP':'Ver arquivos do ZIP')+'</button>';
     }
 
     return '<a class="doc-card'+(hoje?' novo':'')+'" href="'+esc(d.url)+'" target="_blank" rel="noopener">'+
-      icone(d.nome)+
+      icone(d.nome, d.tipo)+
       '<div class="doc-body"><div class="doc-name" title="'+esc(d.nome)+'">'+esc(d.nome)+'</div>'+
       '<div class="doc-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'+esc(d.pasta)+'</div>'+zipBotao+'</div>'+
       '<div class="doc-right"><div class="doc-date">'+esc(fmtDate(d.data))+'</div>'+
-      '<span class="badge '+(hoje?'b-hoje':'b-mes')+'">'+(hoje?'Hoje':'Este mês')+'</span></div>'+
+      '<span class="badge '+(hoje?'b-hoje':'b-mes')+'">'+(d.tipo==='pasta'?'Pasta · ':'')+(hoje?'Hoje':'Este mês')+'</span></div>'+
       renderZipPanel(d)+
       '</a>';
   }).join('');
