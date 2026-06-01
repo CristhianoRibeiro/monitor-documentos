@@ -420,49 +420,135 @@ async function carregarUsuario(token){
 }
 
 // ── BUSCA ──
+// Versão corrigida: não usa mais /search/query como fonte principal.
+// O Search do Graph pode retornar apenas parte dos arquivos recentes, por isso algumas empresas/pastas somem.
+// Agora o monitor percorre a biblioteca do SharePoint/Drive e traz todos os arquivos criados ou alterados no mês.
+var SHAREPOINT_HOST = 'sattvacontroladoria.sharepoint.com';
+var SITE_PATH = '/'; // site raiz. Se a biblioteca estiver em /sites/NOME, altere para '/sites/NOME'
+var MAX_DEPTH = 12;
+
+function dataDoDocumento(item){
+  return item.createdDateTime || item.lastModifiedDateTime || new Date().toISOString();
+}
+
+function isMesDocumento(item){
+  return isMes(item.createdDateTime) || isMes(item.lastModifiedDateTime);
+}
+
+function pastaDoDriveItem(item){
+  // Para itens vindos da API de Drive, o parentReference.path costuma vir assim:
+  // /drive/root:/EMPRESA/SUBPASTA
+  try{
+    var path = (item.parentReference && item.parentReference.path) || '';
+    var marker = '/drive/root:';
+    var idx = path.indexOf(marker);
+    if(idx > -1){
+      var rel = path.substring(idx + marker.length).replace(/^\/+/, '');
+      if(rel){
+        return decodeURIComponent(rel.split('/')[0]) || 'Raiz';
+      }
+    }
+  }catch(e){}
+
+  // Fallback para itens vindos de busca ou webUrl.
+  return pasta(item.webUrl || '');
+}
+
+async function graphGet(token, url){
+  var resp = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
+  if(!resp.ok){
+    var txt = '';
+    try{ txt = await resp.text(); }catch(e){}
+    throw new Error('Erro Graph API: '+resp.status+' '+txt.substring(0,180));
+  }
+  return await resp.json();
+}
+
+async function graphGetAll(token, url){
+  var todos = [];
+  var next = url;
+  while(next){
+    var data = await graphGet(token, next);
+    if(data.value && data.value.length) todos = todos.concat(data.value);
+    next = data['@odata.nextLink'] || '';
+  }
+  return todos;
+}
+
+async function obterSite(token){
+  var url = 'https://graph.microsoft.com/v1.0/sites/'+SHAREPOINT_HOST+':'+SITE_PATH;
+  return await graphGet(token, url);
+}
+
+async function obterDrivesMonitorados(token, siteId){
+  var drives = await graphGetAll(token, 'https://graph.microsoft.com/v1.0/sites/'+encodeURIComponent(siteId)+'/drives?$select=id,name,webUrl');
+
+  // Primeiro tenta encontrar bibliotecas com nome compatível com Documentos.
+  var alvo = drives.filter(function(d){
+    var n = (d.name || '').toLowerCase();
+    var u = (d.webUrl || '').toLowerCase();
+    return n.indexOf('document') > -1 || n.indexOf('documentos') > -1 || u.indexOf('/documentos') > -1;
+  });
+
+  // Se não encontrar, usa todas as bibliotecas acessíveis no site.
+  return alvo.length ? alvo : drives;
+}
+
+async function listarFilhosDrive(token, driveId, itemId){
+  var base;
+  if(itemId){
+    base = 'https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(driveId)+'/items/'+encodeURIComponent(itemId)+'/children';
+  }else{
+    base = 'https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(driveId)+'/root/children';
+  }
+
+  var select = '$select=id,name,webUrl,createdDateTime,lastModifiedDateTime,file,folder,parentReference,@microsoft.graph.downloadUrl';
+  return await graphGetAll(token, base+'?'+select+'&$top=999');
+}
+
+async function percorrerDrive(token, drive, itemId, depth, acumulados){
+  if(depth > MAX_DEPTH) return;
+
+  var filhos = await listarFilhosDrive(token, drive.id, itemId);
+
+  for(var i=0;i<filhos.length;i++){
+    var item = filhos[i];
+
+    if(item.folder){
+      await percorrerDrive(token, drive, item.id, depth+1, acumulados);
+      continue;
+    }
+
+    if(!item.file) continue;
+    if(!isMesDocumento(item)) continue;
+
+    acumulados.push({
+      id: item.id || '',
+      driveId: drive.id || '',
+      nome: item.name || '',
+      url: item.webUrl || '',
+      data: dataDoDocumento(item),
+      criadoEm: item.createdDateTime || '',
+      modificadoEm: item.lastModifiedDateTime || '',
+      pasta: pastaDoDriveItem(item),
+      downloadUrl: item['@microsoft.graph.downloadUrl'] || ''
+    });
+  }
+}
+
 async function carregar(){
   var btn=document.getElementById('btn-ref');
   btn.classList.add('spin');
   document.getElementById('err-bar').style.display='none';
   try{
     var token=await getToken();
-    var now=new Date();
-    var inicio=new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+    var site = await obterSite(token);
+    var drives = await obterDrivesMonitorados(token, site.id);
+    var novos = [];
 
-    var url='https://graph.microsoft.com/v1.0/search/query';
-    var body={requests:[{
-      entityTypes:['driveItem'],
-      query:{queryString:'*'},
-      from:0, size:100,
-      sortProperties:[{name:'lastModifiedDateTime',isDescending:true}],
-      fields:['id','name','webUrl','lastModifiedDateTime','folder','parentReference','@microsoft.graph.downloadUrl']
-    }]};
-
-    var r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(!r.ok)throw new Error('Erro Graph API: '+r.status);
-    var data=await r.json();
-    var hits=(data.value&&data.value[0]&&data.value[0].hitsContainers&&data.value[0].hitsContainers[0]&&data.value[0].hitsContainers[0].hits)||[];
-
-    var novos=hits
-      .map(function(h){return h.resource;})
-      .filter(function(r){return r&&!r.folder;})
-      .filter(function(r){
-        var u=(r.webUrl||'').toLowerCase();
-        return u.indexOf('/'+PASTA.toLowerCase()+'/')>-1||u.indexOf('/'+PASTA.toLowerCase())>-1;
-      })
-      .filter(function(r){return isMes(r.lastModifiedDateTime);})
-      .map(function(r){
-        var pr=r.parentReference||{};
-        return {
-          id:r.id||'',
-          driveId:pr.driveId||'',
-          nome:r.name,
-          url:r.webUrl,
-          data:r.lastModifiedDateTime,
-          pasta:pasta(r.webUrl),
-          downloadUrl:r['@microsoft.graph.downloadUrl']||''
-        };
-      });
+    for(var i=0;i<drives.length;i++){
+      await percorrerDrive(token, drives[i], null, 0, novos);
+    }
 
     mesclarDocs(novos);
     atualizarUI();
