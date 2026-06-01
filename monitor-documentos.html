@@ -712,7 +712,7 @@ const msalConfig = {
 };
 
 const scopes = ['Sites.Read.All', 'Files.Read.All', 'User.Read'];
-const msalInstance = new msal.PublicClientApplication(msalConfig);
+let msalInstance = null;
 
 let pastaConfig = localStorage.getItem('pasta_config') || 'Documentos';
 let todosDocumentos = [];
@@ -776,6 +776,7 @@ function initials(nome) {
 // ── AUTH ──
 async function login() {
   try {
+    if (!msalInstance) throw new Error('Aguarde a inicialização e tente novamente');
     await msalInstance.loginRedirect({ scopes });
   } catch (e) {
     const el = document.getElementById('login-error');
@@ -971,8 +972,10 @@ function salvarConfig() {
 }
 
 // ── INIT ──
-msalInstance.initialize().then(async () => {
+async function initMsal() {
   try {
+    msalInstance = new msal.PublicClientApplication(msalConfig);
+    await msalInstance.initialize();
     const result = await msalInstance.handleRedirectPromise();
     if (result && result.account) {
       iniciarApp(result.account);
@@ -985,10 +988,18 @@ msalInstance.initialize().then(async () => {
   } catch (e) {
     console.error('Erro MSAL init:', e);
     const el = document.getElementById('login-error');
-    el.style.display = 'block';
-    el.textContent = 'Erro ao inicializar: ' + (e.message || 'recarregue a página');
+    if (el) {
+      el.style.display = 'block';
+      el.textContent = 'Erro ao inicializar: ' + (e.message || 'recarregue a página');
+    }
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initMsal);
+} else {
+  initMsal();
+}
 </script>
 </body>
 </html>
