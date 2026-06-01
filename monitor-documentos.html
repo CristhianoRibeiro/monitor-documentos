@@ -6,6 +6,7 @@
 <title>Monitor de Documentos · Sattva</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root {
   --bg: #f5f4f0; --surface: #fff; --surface2: #f0ede8;
@@ -85,6 +86,16 @@ select { padding: 8px 12px; border: 1px solid var(--border); border-radius: var(
 .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-top: 5px; }
 .b-hoje { background: var(--accent-light); color: var(--accent-dark); }
 .b-mes { background: var(--info-bg); color: var(--info); }
+
+
+.zip-panel { grid-column: 2 / 4; margin-top: -4px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rs); padding: 10px 12px; font-size: 12px; color: var(--muted); }
+.zip-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.zip-title { font-weight: 600; color: var(--text); }
+.zip-files { list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow: auto; }
+.zip-files li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'DM Mono', monospace; font-size: 11px; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.04); }
+.zip-btn { margin-top: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 20px; padding: 3px 9px; font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 600; cursor: pointer; }
+.zip-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
+.zip-err { color: var(--danger); }
 
 .empty { text-align: center; padding: 48px 24px; color: var(--muted); }
 .empty svg { width: 40px; height: 40px; margin: 0 auto 12px; display: block; color: var(--faint); }
@@ -180,7 +191,84 @@ var SCOPES = ['https://graph.microsoft.com/Files.Read.All','https://graph.micros
 var PASTA = 'Documentos';
 
 var docs = [];
+var pastasHistorico = [];
 var timer = null;
+
+function competenciaKey(){
+  var n = new Date();
+  return n.getFullYear() + '_' + String(n.getMonth()+1).padStart(2,'0');
+}
+var STORAGE_KEY = 'monitor_docs_v2_' + competenciaKey();
+var PASTAS_KEY = 'monitor_pastas_v2_' + competenciaKey();
+
+// ── PERSISTÊNCIA LOCAL ──
+function carregarSalvos(){
+  try{
+    docs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  }catch(e){
+    docs = [];
+  }
+
+  try{
+    pastasHistorico = JSON.parse(localStorage.getItem(PASTAS_KEY) || '[]');
+  }catch(e){
+    pastasHistorico = [];
+  }
+
+  // Garante que as pastas/empresas dos documentos já salvos continuem aparecendo.
+  docs.forEach(function(d){
+    if(d && d.pasta && pastasHistorico.indexOf(d.pasta) === -1){
+      pastasHistorico.push(d.pasta);
+    }
+  });
+}
+
+function salvarDocs(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+    localStorage.setItem(PASTAS_KEY, JSON.stringify(pastasHistorico));
+  }catch(e){}
+}
+
+function chaveDoc(d){
+  return d.url || (d.nome + '|' + d.data);
+}
+
+function mesclarDocs(novos){
+  var mapa = {};
+
+  docs.forEach(function(d){
+    if(d && chaveDoc(d)) mapa[chaveDoc(d)] = d;
+    if(d && d.pasta && pastasHistorico.indexOf(d.pasta) === -1) pastasHistorico.push(d.pasta);
+  });
+
+  novos.forEach(function(d){
+    if(d && chaveDoc(d)) mapa[chaveDoc(d)] = d;
+    if(d && d.pasta && pastasHistorico.indexOf(d.pasta) === -1) pastasHistorico.push(d.pasta);
+  });
+
+  // IMPORTANTE: não substitui a base pelo retorno atual do Graph.
+  // O Graph Search pode retornar só parte dos itens em uma atualização.
+  // Aqui mantemos tudo que já foi visto no mês e só adicionamos/atualizamos novos itens.
+  docs = Object.values(mapa)
+    .filter(function(d){ return d && d.data && isMes(d.data); })
+    .sort(function(a,b){ return new Date(b.data) - new Date(a.data); });
+
+  pastasHistorico = pastasHistorico
+    .filter(function(p){ return p && String(p).trim(); })
+    .filter(function(p, i, arr){ return arr.indexOf(p) === i; })
+    .sort();
+
+  salvarDocs();
+}
+
+function limparHistoricoMonitor(){
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(PASTAS_KEY);
+  docs = [];
+  pastasHistorico = [];
+  atualizarUI();
+}
 
 // ── UTILS ──
 function ext(n){ return (n.split('.').pop()||'').toLowerCase(); }
@@ -211,6 +299,18 @@ function pasta(url){
   return 'Outros';
 }
 function initials(n){ if(!n)return '?'; var p=n.trim().split(' '); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
+function isZipNome(n){ return ext(n)==='zip'; }
+function esc(v){
+  return String(v||'').replace(/[&<>'"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];
+  });
+}
+function encKey(d){ return encodeURIComponent(chaveDoc(d)); }
+function getDocPorKey(k){
+  var key=decodeURIComponent(k);
+  return docs.find(function(d){ return chaveDoc(d)===key; });
+}
+
 
 // ── AUTH com PKCE manual ──
 function b64url(buf){
@@ -335,7 +435,7 @@ async function carregar(){
       query:{queryString:'*'},
       from:0, size:100,
       sortProperties:[{name:'lastModifiedDateTime',isDescending:true}],
-      fields:['name','webUrl','lastModifiedDateTime','folder']
+      fields:['id','name','webUrl','lastModifiedDateTime','folder','parentReference','@microsoft.graph.downloadUrl']
     }]};
 
     var r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -343,7 +443,7 @@ async function carregar(){
     var data=await r.json();
     var hits=(data.value&&data.value[0]&&data.value[0].hitsContainers&&data.value[0].hitsContainers[0]&&data.value[0].hitsContainers[0].hits)||[];
 
-    docs=hits
+    var novos=hits
       .map(function(h){return h.resource;})
       .filter(function(r){return r&&!r.folder;})
       .filter(function(r){
@@ -351,9 +451,20 @@ async function carregar(){
         return u.indexOf('/'+PASTA.toLowerCase()+'/')>-1||u.indexOf('/'+PASTA.toLowerCase())>-1;
       })
       .filter(function(r){return isMes(r.lastModifiedDateTime);})
-      .map(function(r){return {nome:r.name,url:r.webUrl,data:r.lastModifiedDateTime,pasta:pasta(r.webUrl)};})
-      .sort(function(a,b){return new Date(b.data)-new Date(a.data);});
+      .map(function(r){
+        var pr=r.parentReference||{};
+        return {
+          id:r.id||'',
+          driveId:pr.driveId||'',
+          nome:r.name,
+          url:r.webUrl,
+          data:r.lastModifiedDateTime,
+          pasta:pasta(r.webUrl),
+          downloadUrl:r['@microsoft.graph.downloadUrl']||''
+        };
+      });
 
+    mesclarDocs(novos);
     atualizarUI();
   }catch(e){
     var bar=document.getElementById('err-bar');
@@ -362,6 +473,88 @@ async function carregar(){
     if(e.message==='Sessão expirada')logout();
   }
   btn.classList.remove('spin');
+}
+
+
+// ── ZIP ──
+async function baixarBlobZip(doc){
+  var token=await getToken();
+
+  if(doc.downloadUrl){
+    var direto=await fetch(doc.downloadUrl);
+    if(direto.ok) return await direto.blob();
+  }
+
+  if(doc.driveId && doc.id){
+    var url='https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(doc.driveId)+'/items/'+encodeURIComponent(doc.id)+'/content';
+    var resp=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+    if(resp.ok) return await resp.blob();
+    throw new Error('Não foi possível baixar o ZIP pelo Graph: '+resp.status);
+  }
+
+  throw new Error('O Graph não retornou o identificador necessário para abrir este ZIP.');
+}
+
+async function toggleZip(key){
+  var doc=getDocPorKey(key);
+  if(!doc) return;
+
+  if(doc.zipOpen){
+    doc.zipOpen=false;
+    salvarDocs();
+    render();
+    return;
+  }
+
+  doc.zipOpen=true;
+
+  if(doc.zipFiles && doc.zipFiles.length){
+    salvarDocs();
+    render();
+    return;
+  }
+
+  doc.zipStatus='loading';
+  doc.zipError='';
+  salvarDocs();
+  render();
+
+  try{
+    if(typeof JSZip==='undefined') throw new Error('Biblioteca JSZip não carregou. Verifique a conexão com a internet.');
+    var blob=await baixarBlobZip(doc);
+    var zip=await JSZip.loadAsync(blob);
+    var arquivos=Object.keys(zip.files).filter(function(nome){ return !zip.files[nome].dir; });
+    doc.zipFiles=arquivos.sort();
+    doc.zipStatus='done';
+  }catch(e){
+    doc.zipStatus='error';
+    doc.zipError=e.message||'Erro ao abrir ZIP';
+  }
+
+  salvarDocs();
+  render();
+}
+
+function renderZipPanel(d){
+  if(!isZipNome(d.nome) || !d.zipOpen) return '';
+
+  if(d.zipStatus==='loading'){
+    return '<div class="zip-panel"><div class="zip-head"><span class="zip-title">Lendo arquivos do ZIP...</span></div></div>';
+  }
+
+  if(d.zipStatus==='error'){
+    return '<div class="zip-panel"><div class="zip-err">Erro ao abrir ZIP: '+esc(d.zipError)+'</div></div>';
+  }
+
+  var files=d.zipFiles||[];
+  if(!files.length){
+    return '<div class="zip-panel"><div class="zip-head"><span class="zip-title">Conteúdo do ZIP</span><span>Nenhum arquivo encontrado</span></div></div>';
+  }
+
+  return '<div class="zip-panel">'+
+    '<div class="zip-head"><span class="zip-title">Conteúdo do ZIP</span><span>'+files.length+' arquivo'+(files.length!==1?'s':'')+'</span></div>'+
+    '<ul class="zip-files">'+files.map(function(f){return '<li title="'+esc(f)+'">'+esc(f)+'</li>';}).join('')+'</ul>'+
+    '</div>';
 }
 
 function atualizarUI(){
@@ -373,7 +566,7 @@ function atualizarUI(){
   document.getElementById('s1b').textContent=mesNome;
 
   var hoje=docs.filter(function(d){return isHoje(d.data);}).length;
-  var pastas=[...new Set(docs.map(function(d){return d.pasta;}))];
+  var pastas=[...new Set(pastasHistorico.concat(docs.map(function(d){return d.pasta;})).filter(Boolean))];
   document.getElementById('s1').textContent=docs.length;
   document.getElementById('s2').textContent=hoje;
   document.getElementById('s3').textContent=pastas.length;
@@ -391,23 +584,32 @@ function render(){
   var fp=document.getElementById('f-pasta').value.toLowerCase();
   var fn=document.getElementById('f-nome').value.toLowerCase();
   var lista=document.getElementById('lista');
-  var f=docs.filter(function(d){return(!fp||d.pasta.toLowerCase()===fp)&&(!fn||d.nome.toLowerCase().indexOf(fn)>-1);});
+  var f=docs.filter(function(d){return(!fp||String(d.pasta||'').toLowerCase()===fp)&&(!fn||String(d.nome||'').toLowerCase().indexOf(fn)>-1);});
 
   if(!f.length){
     var now=new Date();
     var mes=now.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-    lista.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><strong>Nenhum documento encontrado</strong><p>Sem documentos na pasta <strong>'+PASTA+'</strong> em '+mes+'</p></div>';
+    var nomePasta = fp ? document.getElementById('f-pasta').value : PASTA;
+    lista.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><strong>Nenhum documento encontrado</strong><p>Sem documentos salvos para <strong>'+esc(nomePasta)+'</strong> em '+esc(mes)+'</p></div>';
     return;
   }
 
   lista.innerHTML=f.map(function(d){
     var hoje=isHoje(d.data);
-    return '<a class="doc-card'+(hoje?' novo':'')+'" href="'+d.url+'" target="_blank" rel="noopener">'+
+    var key=encKey(d);
+    var zipBotao='';
+    if(isZipNome(d.nome)){
+      zipBotao='<button class="zip-btn" onclick="event.preventDefault();event.stopPropagation();toggleZip(\''+key+'\')">'+(d.zipOpen?'Ocultar ZIP':'Ver arquivos do ZIP')+'</button>';
+    }
+
+    return '<a class="doc-card'+(hoje?' novo':'')+'" href="'+esc(d.url)+'" target="_blank" rel="noopener">'+
       icone(d.nome)+
-      '<div class="doc-body"><div class="doc-name" title="'+d.nome+'">'+d.nome+'</div>'+
-      '<div class="doc-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'+d.pasta+'</div></div>'+
-      '<div class="doc-right"><div class="doc-date">'+fmtDate(d.data)+'</div>'+
-      '<span class="badge '+(hoje?'b-hoje':'b-mes')+'">'+(hoje?'Hoje':'Este mês')+'</span></div></a>';
+      '<div class="doc-body"><div class="doc-name" title="'+esc(d.nome)+'">'+esc(d.nome)+'</div>'+
+      '<div class="doc-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'+esc(d.pasta)+'</div>'+zipBotao+'</div>'+
+      '<div class="doc-right"><div class="doc-date">'+esc(fmtDate(d.data))+'</div>'+
+      '<span class="badge '+(hoje?'b-hoje':'b-mes')+'">'+(hoje?'Hoje':'Este mês')+'</span></div>'+
+      renderZipPanel(d)+
+      '</a>';
   }).join('');
 }
 
@@ -419,6 +621,8 @@ function mostrarErroLogin(msg){
 
 // ── INIT ──
 window.addEventListener('load', async function(){
+  carregarSalvos();
+
   var params=new URLSearchParams(window.location.search);
   var code=params.get('code');
   var state=params.get('state');
