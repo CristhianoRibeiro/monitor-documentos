@@ -4,580 +4,98 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Monitor de Documentos · Sattva</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/msal.js/2.38.3/msal-browser.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #f5f4f0;
-    --surface: #ffffff;
-    --surface2: #f0ede8;
-    --border: #e2ddd8;
-    --text: #1a1916;
-    --text-muted: #7a756e;
-    --text-faint: #b0aa9f;
-    --accent: #2d6a4f;
-    --accent-light: #e8f4ef;
-    --accent-text: #1a4032;
-    --danger: #c94040;
-    --danger-light: #fdf0f0;
-    --warn: #b97a1a;
-    --warn-light: #fdf6e8;
-    --info: #2455a0;
-    --info-light: #eef2fb;
-    --radius: 10px;
-    --radius-sm: 6px;
-    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-    --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  /* ── LOGIN ── */
-  #login-screen {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg);
-  }
-
-  .login-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 48px 40px;
-    width: 360px;
-    box-shadow: var(--shadow-md);
-    text-align: center;
-  }
-
-  .login-logo {
-    width: 52px;
-    height: 52px;
-    background: var(--accent);
-    border-radius: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 24px;
-  }
-
-  .login-logo svg { width: 28px; height: 28px; fill: white; }
-
-  .login-card h1 {
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 6px;
-  }
-
-  .login-card p {
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-bottom: 32px;
-    line-height: 1.6;
-  }
-
-  .btn-ms {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    width: 100%;
-    padding: 12px 20px;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: var(--radius);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
-  }
-
-  .btn-ms:hover { background: #245840; }
-  .btn-ms:active { transform: scale(0.98); }
-
-  .btn-ms svg { width: 18px; height: 18px; }
-
-  .login-footer {
-    margin-top: 24px;
-    font-size: 11px;
-    color: var(--text-faint);
-  }
-
-  /* ── LAYOUT ── */
-  #app { display: none; min-height: 100vh; }
-
-  .topbar {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 0 24px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    box-shadow: var(--shadow);
-  }
-
-  .topbar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .logo-mark {
-    width: 32px;
-    height: 32px;
-    background: var(--accent);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .logo-mark svg { width: 18px; height: 18px; fill: white; }
-
-  .topbar-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .topbar-sub {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-left: 4px;
-  }
-
-  .topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .user-pill {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 4px 12px 4px 4px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-
-  .avatar {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 600;
-  }
-
-  .btn-logout {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 12px;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-
-  .btn-logout:hover { background: var(--surface2); color: var(--text); }
-
-  /* ── MAIN ── */
-  .main { max-width: 900px; margin: 0 auto; padding: 28px 24px; }
-
-  /* ── STATS ── */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-
-  .stat-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px 18px;
-    box-shadow: var(--shadow);
-  }
-
-  .stat-label {
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 6px;
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: 300;
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-  }
-
-  .stat-sub {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 2px;
-  }
-
-  /* ── TOOLBAR ── */
-  .toolbar {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  .search-wrap {
-    flex: 1;
-    min-width: 200px;
-    position: relative;
-  }
-
-  .search-wrap svg {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 15px;
-    height: 15px;
-    color: var(--text-faint);
-  }
-
-  .search-wrap input {
-    width: 100%;
-    padding: 8px 12px 8px 32px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    background: var(--surface);
-    color: var(--text);
-    outline: none;
-    transition: border-color 0.15s;
-  }
-
-  .search-wrap input:focus { border-color: var(--accent); }
-  .search-wrap input::placeholder { color: var(--text-faint); }
-
-  select {
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    background: var(--surface);
-    color: var(--text);
-    outline: none;
-    cursor: pointer;
-  }
-
-  select:focus { border-color: var(--accent); }
-
-  .btn-refresh {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 8px 14px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    color: var(--text);
-    cursor: pointer;
-    transition: background 0.15s;
-    white-space: nowrap;
-  }
-
-  .btn-refresh:hover { background: var(--surface2); }
-  .btn-refresh svg { width: 14px; height: 14px; transition: transform 0.5s; }
-  .btn-refresh.loading svg { animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ── MÊS HEADER ── */
-  .mes-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-
-  .mes-titulo {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .live-badge {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    color: var(--accent);
-    font-weight: 500;
-  }
-
-  .live-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    animation: pulse 1.8s ease-in-out infinite;
-  }
-
-  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
-
-  /* ── DOC CARDS ── */
-  .doc-list { display: flex; flex-direction: column; gap: 6px; }
-
-  .doc-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    display: grid;
-    grid-template-columns: 40px 1fr auto;
-    gap: 12px;
-    align-items: center;
-    cursor: pointer;
-    transition: border-color 0.15s, box-shadow 0.15s;
-    text-decoration: none;
-    box-shadow: var(--shadow);
-  }
-
-  .doc-card:hover {
-    border-color: var(--accent);
-    box-shadow: 0 2px 8px rgba(45,106,79,0.1);
-  }
-
-  .doc-card.novo { border-left: 3px solid var(--accent); }
-
-  .doc-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .doc-icon svg { width: 22px; height: 22px; }
-
-  .doc-body { overflow: hidden; }
-
-  .doc-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 4px;
-  }
-
-  .doc-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 11px;
-    color: var(--text-muted);
-    flex-wrap: wrap;
-  }
-
-  .doc-meta span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .doc-meta svg { width: 12px; height: 12px; flex-shrink: 0; }
-
-  .doc-right { text-align: right; flex-shrink: 0; }
-
-  .doc-date {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-family: 'DM Mono', monospace;
-    white-space: nowrap;
-  }
-
-  .badge {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 20px;
-    margin-top: 5px;
-    letter-spacing: 0.03em;
-  }
-
-  .badge-hoje { background: var(--accent-light); color: var(--accent-text); }
-  .badge-mes { background: var(--info-light); color: var(--info); }
-
-  /* ── ESTADOS ── */
-  .estado {
-    text-align: center;
-    padding: 48px 24px;
-    color: var(--text-muted);
-  }
-
-  .estado svg {
-    width: 40px;
-    height: 40px;
-    margin: 0 auto 12px;
-    display: block;
-    color: var(--text-faint);
-  }
-
-  .estado strong { display: block; font-size: 15px; color: var(--text); margin-bottom: 6px; }
-  .estado p { font-size: 13px; }
-
-  .error-bar {
-    background: var(--danger-light);
-    border: 1px solid #f0c0c0;
-    border-radius: var(--radius-sm);
-    padding: 10px 14px;
-    font-size: 13px;
-    color: var(--danger);
-    margin-bottom: 16px;
-    display: none;
-  }
-
-  .footer-bar {
-    margin-top: 24px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--text-faint);
-  }
-
-  /* ── CONFIG MODAL ── */
-  .modal-bg {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.3);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .modal-bg.open { display: flex; }
-
-  .modal {
-    background: var(--surface);
-    border-radius: 14px;
-    padding: 28px;
-    width: 420px;
-    box-shadow: var(--shadow-md);
-  }
-
-  .modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-  .modal p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
-
-  .field { margin-bottom: 14px; }
-  .field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
-  .field input {
-    width: 100%;
-    padding: 9px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    background: var(--surface2);
-    color: var(--text);
-    outline: none;
-  }
-  .field input:focus { border-color: var(--accent); background: var(--surface); }
-
-  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
-
-  .btn-secondary {
-    padding: 8px 16px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: none;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    color: var(--text-muted);
-    cursor: pointer;
-  }
-
-  .btn-primary {
-    padding: 8px 16px;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: var(--accent);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    color: white;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .btn-config {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 6px 10px;
-    cursor: pointer;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-  }
-
-  .btn-config svg { width: 15px; height: 15px; }
-  .btn-config:hover { background: var(--surface2); }
-
-  @media (max-width: 600px) {
-    .stats-grid { grid-template-columns: 1fr 1fr; }
-    .topbar-sub { display: none; }
-    .doc-card { grid-template-columns: 36px 1fr; }
-    .doc-right { display: none; }
-  }
+:root {
+  --bg: #f5f4f0; --surface: #fff; --surface2: #f0ede8;
+  --border: #e2ddd8; --text: #1a1916; --muted: #7a756e; --faint: #b0aa9f;
+  --accent: #2d6a4f; --accent-light: #e8f4ef; --accent-dark: #1a4032;
+  --info-bg: #eef2fb; --info: #2455a0;
+  --danger: #c94040; --danger-bg: #fdf0f0;
+  --r: 10px; --rs: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+/* LOGIN */
+#login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 48px 40px; width: 360px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+.login-logo { width: 52px; height: 52px; background: var(--accent); border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }
+.login-logo svg { width: 28px; height: 28px; fill: white; }
+.login-card h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+.login-card p { font-size: 13px; color: var(--muted); margin-bottom: 32px; line-height: 1.6; }
+.btn-ms { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 13px 20px; background: var(--accent); color: white; border: none; border-radius: var(--r); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+.btn-ms:hover { background: #245840; }
+.btn-ms:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-err { margin-top: 14px; font-size: 12px; color: var(--danger); display: none; }
+.login-foot { margin-top: 20px; font-size: 11px; color: var(--faint); }
+
+/* APP */
+#app { display: none; }
+.topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+.topbar-left { display: flex; align-items: center; gap: 10px; }
+.logo-mark { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.logo-mark svg { width: 18px; height: 18px; fill: white; }
+.topbar h2 { font-size: 14px; font-weight: 600; }
+.topbar-sub { font-size: 12px; color: var(--muted); }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.user-pill { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 4px; font-size: 12px; color: var(--muted); }
+.avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+.btn-out { background: none; border: 1px solid var(--border); border-radius: var(--rs); padding: 5px 10px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted); cursor: pointer; }
+.btn-out:hover { background: var(--surface2); }
+
+.main { max-width: 900px; margin: 0 auto; padding: 28px 24px; }
+.stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 24px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; }
+.stat-lbl { font-size: 11px; font-weight: 500; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.stat-val { font-size: 28px; font-weight: 300; font-family: 'DM Mono', monospace; }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.search { flex: 1; min-width: 180px; position: relative; }
+.search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--faint); }
+.search input { width: 100%; padding: 8px 12px 8px 32px; border: 1px solid var(--border); border-radius: var(--rs); font-family: 'DM Sans', sans-serif; font-size: 13px; background: var(--surface); color: var(--text); outline: none; }
+.search input:focus { border-color: var(--accent); }
+select { padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--rs); font-family: 'DM Sans', sans-serif; font-size: 13px; background: var(--surface); color: var(--text); outline: none; cursor: pointer; }
+.btn-ref { display: flex; align-items: center; gap: 7px; padding: 8px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--rs); font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap; }
+.btn-ref:hover { background: var(--surface2); }
+.btn-ref svg { width: 14px; height: 14px; }
+.btn-ref.spin svg { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.mes-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.mes-titulo { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.live { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--accent); font-weight: 500; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.8s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.doc-list { display: flex; flex-direction: column; gap: 6px; }
+.doc-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; cursor: pointer; text-decoration: none; color: inherit; transition: border-color .15s; }
+.doc-card:hover { border-color: var(--accent); }
+.doc-card.novo { border-left: 3px solid var(--accent); }
+.doc-icon { width: 40px; height: 40px; border-radius: var(--rs); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.doc-icon svg { width: 22px; height: 22px; }
+.doc-body { overflow: hidden; }
+.doc-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+.doc-meta { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--muted); }
+.doc-meta svg { width: 11px; height: 11px; }
+.doc-right { text-align: right; flex-shrink: 0; }
+.doc-date { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; }
+.badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-top: 5px; }
+.b-hoje { background: var(--accent-light); color: var(--accent-dark); }
+.b-mes { background: var(--info-bg); color: var(--info); }
+
+.empty { text-align: center; padding: 48px 24px; color: var(--muted); }
+.empty svg { width: 40px; height: 40px; margin: 0 auto 12px; display: block; color: var(--faint); }
+.empty strong { display: block; font-size: 15px; color: var(--text); margin-bottom: 6px; }
+
+.err-bar { background: var(--danger-bg); border: 1px solid #f0c0c0; border-radius: var(--rs); padding: 10px 14px; font-size: 13px; color: var(--danger); margin-bottom: 16px; display: none; }
+.footer-bar { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); }
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
@@ -585,8 +103,8 @@
     </div>
     <h1>Monitor de Documentos</h1>
     <p>Acompanhe em tempo real os documentos recebidos no SharePoint da empresa.</p>
-    <button class="btn-ms" onclick="login()">
-      <svg viewBox="0 0 21 21" fill="none">
+    <button class="btn-ms" id="btn-login" onclick="login()">
+      <svg viewBox="0 0 21 21" width="18" height="18">
         <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
         <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
         <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
@@ -594,412 +112,350 @@
       </svg>
       Entrar com Microsoft
     </button>
-    <div id="login-error" style="margin-top:14px;font-size:12px;color:var(--danger);display:none"></div>
-    <p class="login-footer">Apenas contas autorizadas da organização</p>
+    <div class="login-err" id="login-err"></div>
+    <p class="login-foot">Apenas contas autorizadas da Sattva Controladoria</p>
   </div>
 </div>
 
-<!-- APP -->
 <div id="app">
   <div class="topbar">
     <div class="topbar-left">
       <div class="logo-mark">
         <svg viewBox="0 0 24 24"><path d="M3 7c0-1.1.9-2 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zm2 0v2h14V7H5zm0 4v6h14v-6H5z"/></svg>
       </div>
-      <span class="topbar-title">Monitor de Documentos</span>
-      <span class="topbar-sub" id="mes-topbar"></span>
+      <h2>Monitor de Documentos</h2>
+      <span class="topbar-sub" id="mes-top"></span>
     </div>
     <div class="topbar-right">
       <div class="user-pill">
-        <div class="avatar" id="avatar-initials">?</div>
-        <span id="user-name">Carregando...</span>
+        <div class="avatar" id="av">?</div>
+        <span id="uname">...</span>
       </div>
-      <button class="btn-config" title="Configurar pasta" onclick="abrirConfig()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      </button>
-      <button class="btn-logout" onclick="logout()">Sair</button>
+      <button class="btn-out" onclick="logout()">Sair</button>
     </div>
   </div>
 
   <div class="main">
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Documentos no mês</div>
-        <div class="stat-value" id="s-total">—</div>
-        <div class="stat-sub" id="s-mes-sub">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Chegaram hoje</div>
-        <div class="stat-value" id="s-hoje">—</div>
-        <div class="stat-sub">Em relação ao dia atual</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Pastas ativas</div>
-        <div class="stat-value" id="s-pastas">—</div>
-        <div class="stat-sub">Com documentos este mês</div>
-      </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-lbl">No mês</div><div class="stat-val" id="s1">—</div><div class="stat-sub" id="s1b">—</div></div>
+      <div class="stat"><div class="stat-lbl">Hoje</div><div class="stat-val" id="s2">—</div><div class="stat-sub">documentos recebidos</div></div>
+      <div class="stat"><div class="stat-lbl">Pastas</div><div class="stat-val" id="s3">—</div><div class="stat-sub">com documentos</div></div>
     </div>
 
     <div class="toolbar">
-      <div class="search-wrap">
+      <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" id="f-nome" placeholder="Buscar documento..." oninput="render()">
       </div>
-      <select id="f-pasta" onchange="render()">
-        <option value="">Todas as pastas</option>
-      </select>
-      <button class="btn-refresh" id="btn-refresh" onclick="carregar()">
+      <select id="f-pasta" onchange="render()"><option value="">Todas as pastas</option></select>
+      <button class="btn-ref" id="btn-ref" onclick="carregar()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         Atualizar
       </button>
     </div>
 
-    <div class="error-bar" id="error-bar"></div>
+    <div class="err-bar" id="err-bar"></div>
 
-    <div class="mes-header">
+    <div class="mes-bar">
       <span class="mes-titulo" id="mes-titulo">—</span>
-      <span class="live-badge"><span class="live-dot"></span>Ao vivo · atualiza a cada 5 min</span>
+      <span class="live"><span class="live-dot"></span>Ao vivo · 5 min</span>
     </div>
 
     <div class="doc-list" id="lista">
-      <div class="estado">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        <strong>Carregando documentos...</strong>
-        <p>Buscando no SharePoint</p>
-      </div>
+      <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><strong>Carregando...</strong></div>
     </div>
 
     <div class="footer-bar">
-      <span id="footer-update">—</span>
-      <span id="footer-total">—</span>
-    </div>
-  </div>
-</div>
-
-<!-- CONFIG MODAL -->
-<div class="modal-bg" id="modal-config">
-  <div class="modal">
-    <h3>Configuração da pasta</h3>
-    <p>Informe o nome da pasta mãe no SharePoint que deseja monitorar.</p>
-    <div class="field">
-      <label>Nome da pasta mãe</label>
-      <input type="text" id="cfg-pasta" value="Documentos" placeholder="Ex: Documentos">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="fecharConfig()">Cancelar</button>
-      <button class="btn-primary" onclick="salvarConfig()">Salvar e atualizar</button>
+      <span id="ft-upd">—</span>
+      <span id="ft-tot">—</span>
     </div>
   </div>
 </div>
 
 <script>
-// ══════════════════════════════════════════════
-// ⚠️ SUBSTITUA PELO SEU CLIENT ID DO AZURE AD ⚠️
-const CLIENT_ID = '55d2b29e-1284-48c1-ae0a-fb8a8038901c';
-const TENANT_ID = '4d6551db-5904-4d24-98c4-f8703bcef62f';
-// ══════════════════════════════════════════════
+var CLIENT_ID = '55d2b29e-1284-48c1-ae0a-fb8a8038901c';
+var TENANT_ID = '4d6551db-5904-4d24-98c4-f8703bcef62f';
+var REDIRECT_URI = 'https://cristhianoribeiro.github.io/monitor-documentos/monitor-documentos.html';
+var SCOPES = ['https://graph.microsoft.com/Files.Read.All','https://graph.microsoft.com/Sites.Read.All','https://graph.microsoft.com/User.Read'];
+var PASTA = 'Documentos';
 
-const REDIRECT_URI = 'https://cristhianoribeiro.github.io/monitor-documentos/monitor-documentos.html';
-
-const msalConfig = {
-  auth: {
-    clientId: CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
-    redirectUri: REDIRECT_URI,
-    navigateToLoginRequestUrl: false,
-  },
-  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
-};
-
-const scopes = ['Sites.Read.All', 'Files.Read.All', 'User.Read'];
-let msalInstance = null;
-
-let pastaConfig = localStorage.getItem('pasta_config') || 'Documentos';
-let todosDocumentos = [];
-let intervalo = null;
+var docs = [];
+var timer = null;
 
 // ── UTILS ──
-const extIcons = {
-  pdf: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>`,
-  xlsx: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="12" y1="9" x2="12" y2="17"/></svg>`,
-  docx: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/></svg>`,
-  zip: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
-};
-
-const extColors = {
-  pdf: { bg: '#fdf0f0', stroke: '#c94040' },
-  xlsx: { bg: '#f0f7f0', stroke: '#2d7a3a' },
-  xls:  { bg: '#f0f7f0', stroke: '#2d7a3a' },
-  docx: { bg: '#eef2fb', stroke: '#2455a0' },
-  doc:  { bg: '#eef2fb', stroke: '#2455a0' },
-  zip:  { bg: '#fdf6e8', stroke: '#b97a1a' },
-  csv:  { bg: '#f0f7f4', stroke: '#1a7a5a' },
-};
-
-function getExt(n) { return (n.split('.').pop() || '').toLowerCase(); }
-function getIcon(n) { const e = getExt(n); return extIcons[e] || extIcons.pdf; }
-function getColor(n) { const e = getExt(n); return extColors[e] || { bg: '#f5f5f5', stroke: '#888' }; }
-
-function formatDate(iso) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-    ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+function ext(n){ return (n.split('.').pop()||'').toLowerCase(); }
+function icone(n){
+  var e=ext(n);
+  var map={pdf:'#E24B4A',xlsx:'#2d7a3a',xls:'#2d7a3a',docx:'#2455a0',doc:'#2455a0',csv:'#0F6E56',zip:'#b97a1a',pptx:'#993556'};
+  var c=map[e]||'#888';
+  return '<div style="background:'+c+'18;width:40px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="1.5" width="22" height="22"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>';
 }
-
-function isHoje(iso) {
-  const d = new Date(iso), n = new Date();
-  return d.getDate() === n.getDate() && d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear();
+function fmtDate(iso){
+  var d=new Date(iso);
+  return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 }
-
-function isMesAtual(iso) {
-  const d = new Date(iso), n = new Date();
-  return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear();
+function isHoje(iso){
+  var d=new Date(iso),n=new Date();
+  return d.getDate()===n.getDate()&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();
 }
-
-function extrairPasta(url) {
-  try {
-    const dec = decodeURIComponent(url);
-    const partes = dec.split('/');
-    const pasta = pastaConfig.toLowerCase();
-    const idx = partes.map(p => p.toLowerCase()).lastIndexOf(pasta);
-    if (idx > -1 && partes[idx + 1]) return partes[idx + 1];
-  } catch (e) {}
+function isMes(iso){
+  var d=new Date(iso),n=new Date();
+  return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();
+}
+function pasta(url){
+  try{
+    var p=decodeURIComponent(url).split('/');
+    var i=p.map(function(x){return x.toLowerCase();}).lastIndexOf(PASTA.toLowerCase());
+    if(i>-1&&p[i+1])return p[i+1];
+  }catch(e){}
   return 'Outros';
 }
+function initials(n){ if(!n)return '?'; var p=n.trim().split(' '); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
 
-function initials(nome) {
-  if (!nome) return '?';
-  const p = nome.trim().split(' ');
-  return (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase();
+// ── AUTH com PKCE manual ──
+function b64url(buf){
+  return btoa(String.fromCharCode.apply(null,new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+async function gerarChallenge(){
+  var arr=new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  var verifier=b64url(arr);
+  var hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));
+  var challenge=b64url(hash);
+  return {verifier,challenge};
 }
 
-// ── AUTH ──
-async function login() {
-  try {
-    if (!msalInstance) throw new Error('Aguarde a inicialização e tente novamente');
-    await msalInstance.loginRedirect({ scopes });
-  } catch (e) {
-    const el = document.getElementById('login-error');
-    el.style.display = 'block';
-    el.textContent = 'Erro ao entrar: ' + (e.message || 'tente novamente');
+async function login(){
+  var btn=document.getElementById('btn-login');
+  btn.disabled=true; btn.textContent='Aguarde...';
+  try{
+    var {verifier,challenge}=await gerarChallenge();
+    var state=b64url(crypto.getRandomValues(new Uint8Array(16)));
+    sessionStorage.setItem('pkce_verifier',verifier);
+    sessionStorage.setItem('pkce_state',state);
+
+    var params=new URLSearchParams({
+      client_id: CLIENT_ID,
+      response_type: 'code',
+      redirect_uri: REDIRECT_URI,
+      scope: SCOPES.join(' ')+' offline_access',
+      state: state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      prompt: 'select_account'
+    });
+    window.location.href='https://login.microsoftonline.com/'+TENANT_ID+'/oauth2/v2.0/authorize?'+params.toString();
+  }catch(e){
+    mostrarErroLogin(e.message);
+    btn.disabled=false; btn.textContent='Entrar com Microsoft';
   }
 }
 
-async function getToken() {
-  const accounts = msalInstance.getAllAccounts();
-  if (!accounts.length) throw new Error('Não autenticado');
-  try {
-    const r = await msalInstance.acquireTokenSilent({ scopes, account: accounts[0] });
-    return r.accessToken;
-  } catch {
-    await msalInstance.acquireTokenRedirect({ scopes, account: accounts[0] });
+async function trocarCodigo(code){
+  var verifier=sessionStorage.getItem('pkce_verifier');
+  var resp=await fetch('https://login.microsoftonline.com/'+TENANT_ID+'/oauth2/v2.0/token',{
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: verifier,
+      scope: SCOPES.join(' ')+' offline_access'
+    })
+  });
+  if(!resp.ok){ var e=await resp.json(); throw new Error(e.error_description||'Erro ao trocar código'); }
+  var data=await resp.json();
+  sessionStorage.setItem('access_token', data.access_token);
+  sessionStorage.setItem('refresh_token', data.refresh_token||'');
+  var exp=Date.now()+(data.expires_in-60)*1000;
+  sessionStorage.setItem('token_exp', exp);
+  return data.access_token;
+}
+
+async function getToken(){
+  var token=sessionStorage.getItem('access_token');
+  var exp=parseInt(sessionStorage.getItem('token_exp')||'0');
+  if(token && Date.now()<exp) return token;
+
+  var refresh=sessionStorage.getItem('refresh_token');
+  if(refresh){
+    var resp=await fetch('https://login.microsoftonline.com/'+TENANT_ID+'/oauth2/v2.0/token',{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        grant_type: 'refresh_token',
+        refresh_token: refresh,
+        scope: SCOPES.join(' ')+' offline_access'
+      })
+    });
+    if(resp.ok){
+      var data=await resp.json();
+      sessionStorage.setItem('access_token',data.access_token);
+      sessionStorage.setItem('refresh_token',data.refresh_token||refresh);
+      sessionStorage.setItem('token_exp',Date.now()+(data.expires_in-60)*1000);
+      return data.access_token;
+    }
   }
+  throw new Error('Sessão expirada');
 }
 
-function logout() {
-  msalInstance.logoutRedirect();
-  if (intervalo) clearInterval(intervalo);
+function logout(){
+  sessionStorage.clear();
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  if(timer)clearInterval(timer);
 }
 
-async function iniciarApp(account) {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-
-  const nome = account.name || account.username;
-  document.getElementById('user-name').textContent = nome.split(' ')[0];
-  document.getElementById('avatar-initials').textContent = initials(nome);
-
-  await carregar();
-  if (intervalo) clearInterval(intervalo);
-  intervalo = setInterval(carregar, 5 * 60 * 1000);
+// ── USUÁRIO ──
+async function carregarUsuario(token){
+  var r=await fetch('https://graph.microsoft.com/v1.0/me',{headers:{Authorization:'Bearer '+token}});
+  if(!r.ok)return;
+  var u=await r.json();
+  var nome=u.displayName||u.userPrincipalName||'Usuário';
+  document.getElementById('uname').textContent=nome.split(' ')[0];
+  document.getElementById('av').textContent=initials(nome);
 }
 
 // ── BUSCA ──
-async function carregar() {
-  const btn = document.getElementById('btn-refresh');
-  btn.classList.add('loading');
-  document.getElementById('error-bar').style.display = 'none';
+async function carregar(){
+  var btn=document.getElementById('btn-ref');
+  btn.classList.add('spin');
+  document.getElementById('err-bar').style.display='none';
+  try{
+    var token=await getToken();
+    var now=new Date();
+    var inicio=new Date(now.getFullYear(),now.getMonth(),1).toISOString();
 
-  try {
-    const token = await getToken();
-    const now = new Date();
-    const inicio = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    var url='https://graph.microsoft.com/v1.0/search/query';
+    var body={requests:[{
+      entityTypes:['driveItem'],
+      query:{queryString:'*'},
+      from:0, size:100,
+      sortProperties:[{name:'lastModifiedDateTime',isDescending:true}],
+      fields:['name','webUrl','lastModifiedDateTime','folder']
+    }]};
 
-    const url = `https://graph.microsoft.com/v1.0/search/query`;
-    const body = {
-      requests: [{
-        entityTypes: ['driveItem'],
-        query: { queryString: `*` },
-        from: 0,
-        size: 100,
-        sortProperties: [{ name: 'lastModifiedDateTime', isDescending: true }],
-        fields: ['name', 'webUrl', 'lastModifiedDateTime', 'parentReference', 'folder'],
-      }]
-    };
+    var r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error('Erro Graph API: '+r.status);
+    var data=await r.json();
+    var hits=(data.value&&data.value[0]&&data.value[0].hitsContainers&&data.value[0].hitsContainers[0]&&data.value[0].hitsContainers[0].hits)||[];
 
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    if (!resp.ok) throw new Error(`Graph API: ${resp.status}`);
-    const data = await resp.json();
-
-    const hits = data.value?.[0]?.hitsContainers?.[0]?.hits || [];
-    const pasta = pastaConfig.toLowerCase();
-
-    const docs = hits
-      .map(h => h.resource)
-      .filter(r => r && !r.folder)
-      .filter(r => {
-        const webUrl = (r.webUrl || '').toLowerCase();
-        return webUrl.includes(`/${pasta}/`) || webUrl.includes(`/${pasta}`);
+    docs=hits
+      .map(function(h){return h.resource;})
+      .filter(function(r){return r&&!r.folder;})
+      .filter(function(r){
+        var u=(r.webUrl||'').toLowerCase();
+        return u.indexOf('/'+PASTA.toLowerCase()+'/')>-1||u.indexOf('/'+PASTA.toLowerCase())>-1;
       })
-      .filter(r => isMesAtual(r.lastModifiedDateTime))
-      .map(r => ({
-        nome: r.name,
-        url: r.webUrl,
-        data: r.lastModifiedDateTime,
-        pasta: extrairPasta(r.webUrl),
-      }))
-      .sort((a, b) => new Date(b.data) - new Date(a.data));
+      .filter(function(r){return isMes(r.lastModifiedDateTime);})
+      .map(function(r){return {nome:r.name,url:r.webUrl,data:r.lastModifiedDateTime,pasta:pasta(r.webUrl)};})
+      .sort(function(a,b){return new Date(b.data)-new Date(a.data);});
 
-    todosDocumentos = docs;
     atualizarUI();
-
-  } catch (e) {
-    const bar = document.getElementById('error-bar');
-    bar.style.display = 'block';
-    bar.textContent = '⚠ Erro ao buscar documentos: ' + (e.message || 'verifique sua conexão');
+  }catch(e){
+    var bar=document.getElementById('err-bar');
+    bar.style.display='block';
+    bar.textContent='Erro ao buscar documentos: '+e.message;
+    if(e.message==='Sessão expirada')logout();
   }
-
-  btn.classList.remove('loading');
+  btn.classList.remove('spin');
 }
 
-function atualizarUI() {
-  const now = new Date();
-  const mesNome = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const mesCapit = mesNome.charAt(0).toUpperCase() + mesNome.slice(1);
+function atualizarUI(){
+  var now=new Date();
+  var mesNome=now.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  mesNome=mesNome.charAt(0).toUpperCase()+mesNome.slice(1);
+  document.getElementById('mes-titulo').textContent=mesNome;
+  document.getElementById('mes-top').textContent='· '+mesNome;
+  document.getElementById('s1b').textContent=mesNome;
 
-  document.getElementById('mes-titulo').textContent = mesCapit;
-  document.getElementById('mes-topbar').textContent = '· ' + mesCapit;
-  document.getElementById('s-mes-sub').textContent = mesCapit;
+  var hoje=docs.filter(function(d){return isHoje(d.data);}).length;
+  var pastas=[...new Set(docs.map(function(d){return d.pasta;}))];
+  document.getElementById('s1').textContent=docs.length;
+  document.getElementById('s2').textContent=hoje;
+  document.getElementById('s3').textContent=pastas.length;
 
-  const hoje = todosDocumentos.filter(d => isHoje(d.data)).length;
-  const pastas = [...new Set(todosDocumentos.map(d => d.pasta))];
+  var sel=document.getElementById('f-pasta');
+  var cur=sel.value;
+  sel.innerHTML='<option value="">Todas as pastas</option>'+pastas.sort().map(function(p){return '<option value="'+p+'"'+(p===cur?' selected':'')+'>'+p+'</option>';}).join('');
 
-  document.getElementById('s-total').textContent = todosDocumentos.length;
-  document.getElementById('s-hoje').textContent = hoje;
-  document.getElementById('s-pastas').textContent = pastas.length;
-
-  const sel = document.getElementById('f-pasta');
-  const valAtual = sel.value;
-  sel.innerHTML = '<option value="">Todas as pastas</option>' +
-    pastas.sort().map(p => `<option value="${p}"${p === valAtual ? ' selected' : ''}>${p}</option>`).join('');
-
-  document.getElementById('footer-update').textContent =
-    'Atualizado às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  document.getElementById('footer-total').textContent =
-    `${todosDocumentos.length} documento${todosDocumentos.length !== 1 ? 's' : ''} encontrado${todosDocumentos.length !== 1 ? 's' : ''}`;
-
+  document.getElementById('ft-upd').textContent='Atualizado às '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('ft-tot').textContent=docs.length+' documento'+(docs.length!==1?'s':'')+' encontrado'+(docs.length!==1?'s':'');
   render();
 }
 
-function render() {
-  const fp = document.getElementById('f-pasta').value.toLowerCase();
-  const fn = document.getElementById('f-nome').value.toLowerCase();
-  const lista = document.getElementById('lista');
+function render(){
+  var fp=document.getElementById('f-pasta').value.toLowerCase();
+  var fn=document.getElementById('f-nome').value.toLowerCase();
+  var lista=document.getElementById('lista');
+  var f=docs.filter(function(d){return(!fp||d.pasta.toLowerCase()===fp)&&(!fn||d.nome.toLowerCase().indexOf(fn)>-1);});
 
-  const filtrado = todosDocumentos.filter(d =>
-    (!fp || d.pasta.toLowerCase() === fp) &&
-    (!fn || d.nome.toLowerCase().includes(fn))
-  );
-
-  if (!filtrado.length) {
-    const now = new Date();
-    const mesNome = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-    lista.innerHTML = `<div class="estado">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-      <strong>Nenhum documento encontrado</strong>
-      <p>Ainda não chegaram documentos na pasta <strong>${pastaConfig}</strong> em ${mesNome}.</p>
-    </div>`;
+  if(!f.length){
+    var now=new Date();
+    var mes=now.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    lista.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><strong>Nenhum documento encontrado</strong><p>Sem documentos na pasta <strong>'+PASTA+'</strong> em '+mes+'</p></div>';
     return;
   }
 
-  lista.innerHTML = filtrado.map(d => {
-    const c = getColor(d.nome);
-    const eh_hoje = isHoje(d.data);
-    return `<a class="doc-card${eh_hoje ? ' novo' : ''}" href="${d.url}" target="_blank" rel="noopener">
-      <div class="doc-icon" style="background:${c.bg};color:${c.stroke}">
-        ${getIcon(d.nome)}
-      </div>
-      <div class="doc-body">
-        <div class="doc-name" title="${d.nome}">${d.nome}</div>
-        <div class="doc-meta">
-          <span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            ${d.pasta}
-          </span>
-        </div>
-      </div>
-      <div class="doc-right">
-        <div class="doc-date">${formatDate(d.data)}</div>
-        <span class="badge ${eh_hoje ? 'badge-hoje' : 'badge-mes'}">${eh_hoje ? 'Hoje' : 'Este mês'}</span>
-      </div>
-    </a>`;
+  lista.innerHTML=f.map(function(d){
+    var hoje=isHoje(d.data);
+    return '<a class="doc-card'+(hoje?' novo':'')+'" href="'+d.url+'" target="_blank" rel="noopener">'+
+      icone(d.nome)+
+      '<div class="doc-body"><div class="doc-name" title="'+d.nome+'">'+d.nome+'</div>'+
+      '<div class="doc-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'+d.pasta+'</div></div>'+
+      '<div class="doc-right"><div class="doc-date">'+fmtDate(d.data)+'</div>'+
+      '<span class="badge '+(hoje?'b-hoje':'b-mes')+'">'+(hoje?'Hoje':'Este mês')+'</span></div></a>';
   }).join('');
 }
 
-// ── CONFIG ──
-function abrirConfig() {
-  document.getElementById('cfg-pasta').value = pastaConfig;
-  document.getElementById('modal-config').classList.add('open');
-}
-
-function fecharConfig() {
-  document.getElementById('modal-config').classList.remove('open');
-}
-
-function salvarConfig() {
-  const val = document.getElementById('cfg-pasta').value.trim();
-  if (val) {
-    pastaConfig = val;
-    localStorage.setItem('pasta_config', val);
-    fecharConfig();
-    carregar();
-  }
+function mostrarErroLogin(msg){
+  var el=document.getElementById('login-err');
+  el.style.display='block';
+  el.textContent='Erro: '+msg;
 }
 
 // ── INIT ──
-async function initMsal() {
-  try {
-    msalInstance = new msal.PublicClientApplication(msalConfig);
-    await msalInstance.initialize();
-    const result = await msalInstance.handleRedirectPromise();
-    if (result && result.account) {
-      iniciarApp(result.account);
-      return;
-    }
-    const accounts = msalInstance.getAllAccounts();
-    if (accounts.length > 0) {
-      iniciarApp(accounts[0]);
-    }
-  } catch (e) {
-    console.error('Erro MSAL init:', e);
-    const el = document.getElementById('login-error');
-    if (el) {
-      el.style.display = 'block';
-      el.textContent = 'Erro ao inicializar: ' + (e.message || 'recarregue a página');
-    }
-  }
-}
+window.addEventListener('load', async function(){
+  var params=new URLSearchParams(window.location.search);
+  var code=params.get('code');
+  var state=params.get('state');
+  var savedState=sessionStorage.getItem('pkce_state');
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initMsal);
-} else {
-  initMsal();
-}
+  if(code && state && state===savedState){
+    // Limpar URL
+    history.replaceState({},'',window.location.pathname);
+    try{
+      var token=await trocarCodigo(code);
+      document.getElementById('login-screen').style.display='none';
+      document.getElementById('app').style.display='block';
+      await carregarUsuario(token);
+      await carregar();
+      timer=setInterval(carregar,5*60*1000);
+    }catch(e){
+      mostrarErroLogin(e.message);
+    }
+    return;
+  }
+
+  // Sessão existente?
+  var token=sessionStorage.getItem('access_token');
+  var exp=parseInt(sessionStorage.getItem('token_exp')||'0');
+  var refresh=sessionStorage.getItem('refresh_token');
+  if((token&&Date.now()<exp)||refresh){
+    try{
+      var t=await getToken();
+      document.getElementById('login-screen').style.display='none';
+      document.getElementById('app').style.display='block';
+      await carregarUsuario(t);
+      await carregar();
+      timer=setInterval(carregar,5*60*1000);
+      return;
+    }catch(e){}
+  }
+});
 </script>
 </body>
 </html>
