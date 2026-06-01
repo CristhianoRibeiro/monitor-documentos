@@ -198,8 +198,8 @@ function competenciaKey(){
   var n = new Date();
   return n.getFullYear() + '_' + String(n.getMonth()+1).padStart(2,'0');
 }
-var STORAGE_KEY = 'monitor_docs_v2_' + competenciaKey();
-var PASTAS_KEY = 'monitor_pastas_v2_' + competenciaKey();
+var STORAGE_KEY = 'monitor_docs_v3_' + competenciaKey();
+var PASTAS_KEY = 'monitor_pastas_v3_' + competenciaKey();
 
 // ── PERSISTÊNCIA LOCAL ──
 function carregarSalvos(){
@@ -429,54 +429,79 @@ async function carregarUsuario(token){
 // Agora o monitor percorre a biblioteca do SharePoint/Drive e traz todos os arquivos OU pastas criados/alterados no mês.
 var SHAREPOINT_HOST = 'sattvacontroladoria.sharepoint.com';
 var SITE_PATH = '/'; // site raiz. Se a biblioteca estiver em /sites/NOME, altere para '/sites/NOME'
-var MAX_DEPTH = 12;
+var BIBLIOTECA_ALVO = 'Documentos';
 
 function dataDoDocumento(item){
-  // Para monitoramento, a data principal deve ser a última modificação.
-  // Ex.: uma pasta criada em maio, mas alterada em junho, precisa aparecer em junho.
-  return item.lastModifiedDateTime || item.createdDateTime || new Date().toISOString();
+  return item.modificadoEm || item.criadoEm || item.data || new Date().toISOString();
 }
 
 function isMesDocumento(item){
-  return isMes(item.createdDateTime) || isMes(item.lastModifiedDateTime);
+  return isMes(item.modificadoEm) || isMes(item.criadoEm) || isMes(item.data);
 }
 
-function pastaDoDriveItem(item){
-  // Para itens vindos da API de Drive, o parentReference.path costuma vir assim:
-  // /drive/root:/EMPRESA/SUBPASTA
-  try{
-    var path = (item.parentReference && item.parentReference.path) || '';
-    var marker = '/drive/root:';
-    var idx = path.indexOf(marker);
-    if(idx > -1){
-      var rel = path.substring(idx + marker.length).replace(/^\/+/, '');
-      if(rel){
-        return decodeURIComponent(rel.split('/')[0]) || 'Raiz';
-      }
-    }
-  }catch(e){}
+function inicioMesISO(){
+  var n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), 1, 0, 0, 0).toISOString();
+}
 
-  // Fallback para itens vindos de busca ou webUrl.
-  return pasta(item.webUrl || '');
+function atualizarStatusBusca(txt){
+  var lista = document.getElementById('lista');
+  if(lista && (!docs || docs.length === 0)){
+    lista.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><strong>Carregando...</strong><p>'+esc(txt || '')+'</p></div>';
+  }
+}
+
+function empresaDoCaminho(caminho){
+  try{
+    caminho = decodeURIComponent(String(caminho || '')).replace(/\\/g,'/');
+    var partes = caminho.split('/').filter(Boolean);
+    var idx = -1;
+    for(var i=0;i<partes.length;i++){
+      if(partes[i].toLowerCase() === BIBLIOTECA_ALVO.toLowerCase()) idx = i;
+    }
+    if(idx > -1 && partes[idx+1]) return partes[idx+1];
+  }catch(e){}
+  return 'Outros';
+}
+
+function caminhoRelativo(caminho){
+  try{
+    caminho = decodeURIComponent(String(caminho || '')).replace(/\\/g,'/');
+    var partes = caminho.split('/').filter(Boolean);
+    var idx = -1;
+    for(var i=0;i<partes.length;i++){
+      if(partes[i].toLowerCase() === BIBLIOTECA_ALVO.toLowerCase()) idx = i;
+    }
+    if(idx > -1) return partes.slice(idx+1).join('/');
+  }catch(e){}
+  return caminho || '';
 }
 
 async function graphGet(token, url){
-  var resp = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
+  var resp = await fetch(url, {
+    headers:{
+      Authorization:'Bearer '+token,
+      Prefer:'HonorNonIndexedQueriesWarningMayFailRandomly'
+    }
+  });
   if(!resp.ok){
     var txt = '';
     try{ txt = await resp.text(); }catch(e){}
-    throw new Error('Erro Graph API: '+resp.status+' '+txt.substring(0,180));
+    throw new Error('Erro Graph API: '+resp.status+' '+txt.substring(0,220));
   }
   return await resp.json();
 }
 
-async function graphGetAll(token, url){
+async function graphGetAll(token, url, limitePaginas){
   var todos = [];
   var next = url;
+  var paginas = 0;
   while(next){
+    paginas++;
     var data = await graphGet(token, next);
     if(data.value && data.value.length) todos = todos.concat(data.value);
     next = data['@odata.nextLink'] || '';
+    if(limitePaginas && paginas >= limitePaginas) break;
   }
   return todos;
 }
@@ -486,79 +511,82 @@ async function obterSite(token){
   return await graphGet(token, url);
 }
 
-async function obterDrivesMonitorados(token, siteId){
-  var drives = await graphGetAll(token, 'https://graph.microsoft.com/v1.0/sites/'+encodeURIComponent(siteId)+'/drives?$select=id,name,webUrl');
-
-  // Primeiro tenta encontrar bibliotecas com nome compatível com Documentos.
-  var alvo = drives.filter(function(d){
-    var n = (d.name || '').toLowerCase();
-    var u = (d.webUrl || '').toLowerCase();
-    return n.indexOf('document') > -1 || n.indexOf('documentos') > -1 || u.indexOf('/documentos') > -1;
+async function obterBibliotecasDocumentos(token, siteId){
+  var url = 'https://graph.microsoft.com/v1.0/sites/'+encodeURIComponent(siteId)+'/lists?$select=id,name,displayName,webUrl,list';
+  var lists = await graphGetAll(token, url);
+  return lists.filter(function(l){
+    var template = l.list && l.list.template;
+    var n = ((l.displayName || '') + ' ' + (l.name || '') + ' ' + (l.webUrl || '')).toLowerCase();
+    return template === 'documentLibrary' && (n.indexOf('document') > -1 || n.indexOf('documentos') > -1 || n.indexOf('/documentos') > -1);
   });
-
-  // Se não encontrar, usa todas as bibliotecas acessíveis no site.
-  return alvo.length ? alvo : drives;
 }
 
-async function listarFilhosDrive(token, driveId, itemId){
-  var base;
-  if(itemId){
-    base = 'https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(driveId)+'/items/'+encodeURIComponent(itemId)+'/children';
-  }else{
-    base = 'https://graph.microsoft.com/v1.0/drives/'+encodeURIComponent(driveId)+'/root/children';
-  }
+async function listarItensModificadosNoMes(token, siteId, listId){
+  var inicio = encodeURIComponent(inicioMesISO());
 
-  var select = '$select=id,name,webUrl,createdDateTime,lastModifiedDateTime,file,folder,parentReference,@microsoft.graph.downloadUrl';
-  return await graphGetAll(token, base+'?'+select+'&$top=999');
+  // Consulta a lista do SharePoint, não o Search.
+  // Assim pega arquivo E pasta modificados no mês, inclusive casos como:
+  // Documentos/R&G (teste)/2026/Maio.
+  var expand = '$expand=fields($select=FileLeafRef,FileRef,Modified,Created,FSObjType),driveItem($select=id,name,webUrl,createdDateTime,lastModifiedDateTime,file,folder,parentReference,@microsoft.graph.downloadUrl)';
+  var select = '$select=id,webUrl,createdDateTime,lastModifiedDateTime';
+  var filter = '$filter=fields/Modified ge '+inicio;
+  var url = 'https://graph.microsoft.com/v1.0/sites/'+encodeURIComponent(siteId)+'/lists/'+encodeURIComponent(listId)+'/items?'+select+'&'+expand+'&'+filter+'&$top=999';
+
+  return await graphGetAll(token, url);
 }
 
-async function percorrerDrive(token, drive, itemId, depth, acumulados){
-  if(depth > MAX_DEPTH) return;
+function normalizarListItem(li){
+  var f = li.fields || {};
+  var di = li.driveItem || {};
+  var fileRef = f.FileRef || di.webUrl || li.webUrl || '';
+  var nome = f.FileLeafRef || di.name || 'Item';
+  var modificado = f.Modified || di.lastModifiedDateTime || li.lastModifiedDateTime || '';
+  var criado = f.Created || di.createdDateTime || li.createdDateTime || '';
+  var tipo = (String(f.FSObjType) === '1' || di.folder) ? 'pasta' : 'arquivo';
 
-  var filhos = await listarFilhosDrive(token, drive.id, itemId);
-
-  for(var i=0;i<filhos.length;i++){
-    var item = filhos[i];
-
-    // Agora consideramos tanto ARQUIVOS quanto PASTAS.
-    // No SharePoint, muitas movimentações aparecem como alteração da pasta
-    // ex.: Documentos/R&G (teste)/2026/Maio, mesmo sem o arquivo aparecer na busca.
-    if(isMesDocumento(item)){
-      acumulados.push({
-        id: item.id || '',
-        driveId: drive.id || '',
-        nome: item.name || '',
-        url: item.webUrl || '',
-        data: dataDoDocumento(item),
-        criadoEm: item.createdDateTime || '',
-        modificadoEm: item.lastModifiedDateTime || '',
-        pasta: pastaDoDriveItem(item),
-        tipo: item.folder ? 'pasta' : 'arquivo',
-        downloadUrl: item['@microsoft.graph.downloadUrl'] || ''
-      });
-    }
-
-    if(item.folder){
-      await percorrerDrive(token, drive, item.id, depth+1, acumulados);
-      continue;
-    }
-
-    if(!item.file) continue;
-  }
+  return {
+    id: (di.id || li.id || ''),
+    driveId: (di.parentReference && di.parentReference.driveId) || '',
+    nome: nome,
+    url: di.webUrl || li.webUrl || '',
+    data: modificado || criado,
+    criadoEm: criado,
+    modificadoEm: modificado,
+    pasta: empresaDoCaminho(fileRef),
+    caminho: caminhoRelativo(fileRef),
+    tipo: tipo,
+    downloadUrl: di['@microsoft.graph.downloadUrl'] || ''
+  };
 }
 
 async function carregar(){
   var btn=document.getElementById('btn-ref');
   btn.classList.add('spin');
   document.getElementById('err-bar').style.display='none';
+
+  var timeoutId = setTimeout(function(){
+    atualizarStatusBusca('Ainda buscando no SharePoint. Se a biblioteca for grande, pode demorar um pouco.');
+  }, 8000);
+
   try{
     var token=await getToken();
+    atualizarStatusBusca('Localizando site...');
     var site = await obterSite(token);
-    var drives = await obterDrivesMonitorados(token, site.id);
-    var novos = [];
 
-    for(var i=0;i<drives.length;i++){
-      await percorrerDrive(token, drives[i], null, 0, novos);
+    atualizarStatusBusca('Localizando biblioteca Documentos...');
+    var bibliotecas = await obterBibliotecasDocumentos(token, site.id);
+    if(!bibliotecas.length){
+      throw new Error('Nenhuma biblioteca de documentos foi encontrada no site.');
+    }
+
+    var novos = [];
+    for(var i=0;i<bibliotecas.length;i++){
+      atualizarStatusBusca('Lendo movimentações do mês em '+(bibliotecas[i].displayName || bibliotecas[i].name)+'...');
+      var itens = await listarItensModificadosNoMes(token, site.id, bibliotecas[i].id);
+      itens.forEach(function(li){
+        var d = normalizarListItem(li);
+        if(d && d.data && isMes(d.data) && d.pasta && d.pasta !== 'Outros') novos.push(d);
+      });
     }
 
     mesclarDocs(novos);
@@ -568,8 +596,11 @@ async function carregar(){
     bar.style.display='block';
     bar.textContent='Erro ao buscar documentos: '+e.message;
     if(e.message==='Sessão expirada')logout();
+    atualizarUI();
+  }finally{
+    clearTimeout(timeoutId);
+    btn.classList.remove('spin');
   }
-  btn.classList.remove('spin');
 }
 
 
